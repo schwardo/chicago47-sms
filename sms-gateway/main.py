@@ -1,24 +1,36 @@
 #!/usr/bin/env python
 #
-# Copyright 2007 Google Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
 import webapp2
 
-class MainHandler(webapp2.RequestHandler):
-    def get(self):
-        self.response.out.write('Hello world!')
+from google.appengine.api import mail
+from google.appengine.ext.webapp.mail_handlers import InboundMailHandler 
 
-app = webapp2.WSGIApplication([('/', MainHandler)],
+
+class ReceiveSmsHandler(webapp2.RequestHandler):
+    def get(self):
+        sender = self.request.get('From')
+        body = self.request.get('Body')
+        self.response.out.write('Received SMS from %s: %s' % (sender, body))
+
+        # string@appid.appspotmail.com
+        mail.send_mail(sender="Gateway <%s@chicago47-sms.appspotmail.com" % sender,
+              to="Chicago47 <don.schwarz@gmail.com>",
+              subject="Received SMS message from %s" % sender,
+              body=body)
+
+class ReceiveEmailHandler(InboundMailHandler):
+    def receive(self, mail_message):
+        logging.info("Received a message from: " + mail_message.sender)
+        logging.info('\n'.join(message.bodies('text/plain')))
+
+
+class ViewResponseHandler(webapp2.RequestHandler):
+    def get(self):
+        self.response.out.write('View sent SMS')
+
+
+app = webapp2.WSGIApplication([('/receive-sms', ReceiveSmsHandler),
+                               ('/_ah/mail/.*', ReceiveEmailHandler),
+                               ('/view', ViewResponseHandler)
+                               ],
                               debug=True)
