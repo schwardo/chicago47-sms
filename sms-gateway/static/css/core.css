@@ -21,10 +21,23 @@
     
   hr.separator {
     background-color: #333;
-    height: 40px;
+    height: 20px;
     margin-top: 0;
   }
   
+/* Index
+================================================== */
+
+  .hero-unit {
+    background-color: #222;
+    color: #fff;
+    padding: 60px 20px 0 60px;
+  }
+  
+    .hero-unit h1 { color: #FFC; margin-bottom: 10px; }
+    .hero-unit .lede { float: left; width: 50%; }
+    .hero-unit .screenshot { float: left; width: 40%; margin-left: 10%; text-align: center; }
+
 /* FAQ
 ================================================== */
 
@@ -35,3 +48,34 @@
 ================================================== */
 
   .datestamp { display: block; }
+ 
+/* Responsive
+================================================== */ 
+  @media (max-width: 480px) {
+    .hero-unit h1 { font-size: 36px; }
+  }
+
+  @media (max-width: 768px) {
+    body, p { font-size: 14px; line-height: 1.2em; }
+    #header { text-align: center; }    
+    .hero-unit { padding-right: 60px; }
+    .hero-unit .lede {  width: 100%; float:none; margin-bottom: 40px; }
+    .hero-unit .screenshot {  width: 100%; float: none; margin: 0; }
+  }
+
+  @media (min-width: 480px) and (max-width: 980px) {
+    #header .info .span2 {
+      float: none;
+      width: auto;
+    }
+    
+    #header .info .span2:first-child {
+      margin-bottom: 10px;
+    }
+    
+    .hero-unit h1 { font-size: 48px; }
+  }
+
+  @media (min-width: 981px) and (max-width: 1200px) {
+    #header .info { font-size: 15px; }
+  }
