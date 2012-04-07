@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 #
+import os
 import webapp2
 
 from google.appengine.api import mail
 from google.appengine.ext.webapp.mail_handlers import InboundMailHandler 
-
+from google.appengine.ext.webapp import template
 
 class ReceiveSmsHandler(webapp2.RequestHandler):
     def get(self):
@@ -24,13 +25,20 @@ class ReceiveEmailHandler(InboundMailHandler):
         logging.info('\n'.join(message.bodies('text/plain')))
 
 
-class ViewResponseHandler(webapp2.RequestHandler):
+class ReplyResponseHandler(webapp2.RequestHandler):
+    def get(self, reply_id):
+        path = os.path.join(os.path.dirname(__file__), 'views', 'reply.html')
+        self.response.out.write(template.render(path, {}))
+        
+class IndexResponseHandler(webapp2.RequestHandler):
     def get(self):
-        self.response.out.write('View sent SMS')
+        path = os.path.join(os.path.dirname(__file__), 'views', 'index.html')
+        self.response.out.write(template.render(path, {}))
 
 
 app = webapp2.WSGIApplication([('/receive-sms', ReceiveSmsHandler),
                                ('/_ah/mail/.*', ReceiveEmailHandler),
-                               ('/view', ViewResponseHandler)
+                               ('/view/(.*)', ReplyResponseHandler),
+                               ('/', IndexResponseHandler),
                                ],
                               debug=True)
