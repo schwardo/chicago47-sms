@@ -1,13 +1,16 @@
 #!/usr/bin/env python
 #
 
-import re
+import hashlib
 import logging
 import os
+import random
+import re
+import string
 import webapp2
-import hashlib
 
 from google.appengine.api import mail
+from google.appengine.ext import db
 from google.appengine.ext.webapp.mail_handlers import InboundMailHandler 
 from google.appengine.ext.webapp import template
 
@@ -18,7 +21,13 @@ import conf
 
 EMAIL_PATTERN = re.compile(r'.*<\s*(\d+)\+([0-9a-f]+)@%s\s*>.*' % re.escape(conf.GATEWAY_DOMAIN))
 REPLY_PATTERN = re.compile(r'\[REPLY BELOW THIS LINE\][\s\r\n>]*(.*?)[\s\r\n>]*\[REPLY ABOVE THIS LINE\]',
-                           flags=re.MULTILINE)
+                           flags=re.MULTILINE | re.DOTALL)
+
+class LongResponse(db.Model):
+    timestamp = db.DateTimeProperty(auto_now_add=True)
+    recipient = db.StringProperty()
+    message = db.TextProperty()
+
 
 def GetChecksum(sender):
     m = hashlib.sha1()
@@ -28,6 +37,14 @@ def GetChecksum(sender):
     return m.hexdigest()
 
 class ReceiveSmsHandler(webapp2.RequestHandler):
+    def FormatEmail(self, sender, body):
+        return """[REPLY BELOW THIS LINE]
+
+[REPLY ABOVE THIS LINE]
+
+We received the following SMS message from %s:
+%s""" % (sender, body)
+
     def get(self):
         sender = self.request.get('From')
         body = self.request.get('Body')
@@ -36,13 +53,14 @@ class ReceiveSmsHandler(webapp2.RequestHandler):
         sender = sender.strip()
 
         logging.info('Received SMS from %s: %s' % (sender, body))
-
         checksum = GetChecksum(sender)
 
-        mail.send_mail(sender="%s <%s+%s@%s>" % (sender, sender, checksum, conf.GATEWAY_DOMAIN),
-              to=conf.RECIPIENT,
-              subject="Received SMS message from %s" % sender,
-              body='[REPLY BELOW THIS LINE]\n\n[REPLY ABOVE THIS LINE]\n\n' + body)
+        mail.send_mail(
+            sender="%s <%s+%s@%s>" % (sender, sender, checksum, conf.GATEWAY_DOMAIN),
+            to=conf.RECIPIENT,
+            subject="Received SMS message from %s" % sender,
+            body=self.FormatEmail(sender, body))
+
 
 class ReceiveEmailHandler(InboundMailHandler):
     def ExtractSenderNumber(self, message):
@@ -87,8 +105,15 @@ class ReceiveEmailHandler(InboundMailHandler):
 
         client = TwilioRestClient(conf.TWILIO_ACCOUNT,
                                   conf.TWILIO_TOKEN)
-        if len(payload) > 155:
-            payload = payload[:155] + '...'
+        if len(payload) > conf.MAX_MESSAGE_LENGTH:
+            id = ''.join(random.choice(string.ascii_lowercase + string.digits) for x in range(conf.MESSAGE_ID_LENGTH))
+            resp = LongResponse(key_name=id,
+                                recipient=sender,
+                                message=payload)
+            resp.put()
+            payload = payload[:conf.MAX_MESSAGE_LENGTH] + '... For more, visit http://w47.us/v/%s' % id
+
+        payload = payload.replace('\r', '').replace('\n', ' ').strip()
 
         if conf.SEND_SMS_ENABLED:
             message = client.sms.messages.create(
@@ -100,8 +125,12 @@ class ReceiveEmailHandler(InboundMailHandler):
 
 class ReplyResponseHandler(webapp2.RequestHandler):
     def get(self, reply_id):
+        response = LongResponse.get_by_key_name(reply_id)
+
         path = os.path.join(os.path.dirname(__file__), 'views', 'reply.html')
-        self.response.out.write(template.render(path, {}))
+        self.response.out.write(template.render(path, {
+                    'timestamp': response.timestamp.strftime("%A %B %d %Y, %I:%M:%S %p"),
+                    'message': response.message}))
 
         
 class IndexResponseHandler(webapp2.RequestHandler):
@@ -112,7 +141,7 @@ class IndexResponseHandler(webapp2.RequestHandler):
 
 app = webapp2.WSGIApplication([ReceiveEmailHandler.mapping(),
                                ('/receive-sms', ReceiveSmsHandler),
-                               ('/view/(.*)', ReplyResponseHandler),
+                               ('/v/(.*)', ReplyResponseHandler),
                                ('/', IndexResponseHandler),
                                ],
                               debug=True)
