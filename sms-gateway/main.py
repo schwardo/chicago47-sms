@@ -13,6 +13,8 @@ from twilio.rest import TwilioRestClient
 # All user-specified settings go in conf.py.
 import conf
 
+EMAIL_PATTERN = re.compile(r'^.*<\s*(\d+)@%s\s*>\s*$' % re.escape(conf.GATEWAY_DOMAIN))
+
 class ReceiveSmsHandler(webapp2.RequestHandler):
     def get(self):
         sender = self.request.get('From')
@@ -22,9 +24,8 @@ class ReceiveSmsHandler(webapp2.RequestHandler):
 
         self.response.out.write('Received SMS from %s: %s' % (sender, body))
 
-        # string@appid.appspotmail.com
-        mail.send_mail(sender="%s <%s@%s>" % (sender, sender, GATEWAY_DOMAIN),
-              to=RECIPIENT,
+        mail.send_mail(sender="%s <%s@%s>" % (sender, sender, conf.GATEWAY_DOMAIN),
+              to=conf.RECIPIENT,
               subject="Received SMS message from %s" % sender,
               body=body)
 
@@ -48,16 +49,17 @@ class ReceiveEmailHandler(InboundMailHandler):
             logging.debug("payload: %s" % body[1].payload) 
             payload = body[1].payload
 
-        client = TwilioRestClient(TWILIO_ACCOUNT, TWILIO_TOKEN)
+        client = TwilioRestClient(conf.TWILIO_ACCOUNT,
+                                  conf.TWILIO_TOKEN)
         if len(payload) > 155:
             payload = payload[:155] + '...'
 
-        if SEND_SMS_ENABLED:
+        if conf.SEND_SMS_ENABLED:
             message = client.sms.messages.create(
-                to='+' + sender, from_=SMS_PHONE_NUMBER,
+                to='+' + sender, from_=conf.SMS_PHONE_NUMBER,
                 body=payload)
         else:
-            logger.info('SEND_SMS_ENABLED is False, not sending SMS.')
+            logging.info('SEND_SMS_ENABLED is False, not sending SMS.')
         
 
 class ViewResponseHandler(webapp2.RequestHandler):
