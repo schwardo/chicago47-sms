@@ -52,19 +52,17 @@ We received the following SMS message from %s:
             sender = sender[1:]
         sender = sender.strip()
 
-        logging.info('Received SMS from %s: %s' % (sender, body))
         checksum = GetChecksum(sender)
 
         mail.send_mail(
-            sender="%s <%s+%s@%s>" % (sender, sender, checksum, conf.GATEWAY_DOMAIN),
+            sender='%s <%s+%s@%s>' % (sender, sender, checksum, conf.GATEWAY_DOMAIN),
             to=conf.RECIPIENT,
-            subject="Received SMS message from %s" % sender,
+            subject='Received SMS message from %s' % sender,
             body=self.FormatEmail(sender, body))
 
 
 class ReceiveEmailHandler(InboundMailHandler):
     def ExtractSenderNumber(self, message):
-        logging.info('Email was sent to: %r' % message.to)
         m = EMAIL_PATTERN.match(message.to)
         if m:
             sender = m.group(1)
@@ -80,9 +78,6 @@ class ReceiveEmailHandler(InboundMailHandler):
     def GetTextBody(self, message):
         bodies = message.bodies(content_type='text/plain') 
         for body in bodies: 
-            logging.debug("charset: %s" % body[1].charset) 
-            logging.debug("encoding: %s" % body[1].encoding) 
-            logging.debug("payload: %s" % body[1].payload) 
             return body[1].payload
 
     def RemoveReply(self, text):
@@ -94,13 +89,23 @@ class ReceiveEmailHandler(InboundMailHandler):
             return None
 
     def receive(self, message):
-        logging.info("Received a message from: " + message.sender)
+        logging.info('Received a message from: ' + message.sender)
         sender = self.ExtractSenderNumber(message)
         payload = self.GetTextBody(message)
 
         payload = self.RemoveReply(payload)
-        if payload is None:
-            logging.info('Could not find reply.  Ignoring.')
+        if payload is None or len(payload.strip()) == 0:
+            mail.send_mail(
+                sender='Error <noreply@%s>' % (conf.GATEWAY_DOMAIN),
+                to=conf.RECIPIENT,
+                subject='Received SMS message from %s' % sender,
+                body="""Unable to process your response.
+
+Be sure that you are inserting your message between the [REPLY BELOW
+THIS LINE] and [REPLY ABOVE THIS LINE] markers.
+
+Your reply was:
+%s""" % self.GetTextBody(message))
             return
 
         client = TwilioRestClient(conf.TWILIO_ACCOUNT,
@@ -129,7 +134,7 @@ class ReplyResponseHandler(webapp2.RequestHandler):
 
         path = os.path.join(os.path.dirname(__file__), 'views', 'reply.html')
         self.response.out.write(template.render(path, {
-                    'timestamp': response.timestamp.strftime("%A %B %d %Y, %I:%M:%S %p"),
+                    'timestamp': response.timestamp.strftime('%A %B %d, %Y at %I:%M:%S %p'),
                     'message': response.message}))
 
         
