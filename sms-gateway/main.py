@@ -5,6 +5,7 @@ import re
 import logging
 import os
 import webapp2
+import hashlib
 
 from google.appengine.api import mail
 from google.appengine.ext.webapp.mail_handlers import InboundMailHandler 
@@ -15,9 +16,16 @@ from twilio.rest import TwilioRestClient
 # All user-specified settings go in conf.py.
 import conf
 
-EMAIL_PATTERN = re.compile(r'.*<\s*(\d+)@%s\s*>.*' % re.escape(conf.GATEWAY_DOMAIN))
+EMAIL_PATTERN = re.compile(r'.*<\s*(\d+)\+([0-9a-f]+)@%s\s*>.*' % re.escape(conf.GATEWAY_DOMAIN))
 REPLY_PATTERN = re.compile(r'\[REPLY BELOW THIS LINE\][\s\r\n>]*(.*?)[\s\r\n>]*\[REPLY ABOVE THIS LINE\]',
                            flags=re.MULTILINE)
+
+def GetChecksum(sender):
+    m = hashlib.sha1()
+    m.update(sender)
+    m.update(conf.CHECKSUM_KEY)
+    m.update(sender)
+    return m.hexdigest()
 
 class ReceiveSmsHandler(webapp2.RequestHandler):
     def get(self):
@@ -25,10 +33,13 @@ class ReceiveSmsHandler(webapp2.RequestHandler):
         body = self.request.get('Body')
         if sender[0] == '+':
             sender = sender[1:]
+        sender = sender.strip()
 
-        self.response.out.write('Received SMS from %s: %s' % (sender, body))
+        logging.info('Received SMS from %s: %s' % (sender, body))
 
-        mail.send_mail(sender="%s <%s@%s>" % (sender, sender, conf.GATEWAY_DOMAIN),
+        checksum = GetChecksum(sender)
+
+        mail.send_mail(sender="%s <%s+%s@%s>" % (sender, sender, checksum, conf.GATEWAY_DOMAIN),
               to=conf.RECIPIENT,
               subject="Received SMS message from %s" % sender,
               body='[REPLY BELOW THIS LINE]\n\n[REPLY ABOVE THIS LINE]\n\n' + body)
@@ -38,7 +49,13 @@ class ReceiveEmailHandler(InboundMailHandler):
         logging.info('Email was sent to: %r' % message.to)
         m = EMAIL_PATTERN.match(message.to)
         if m:
-            return m.group(1)
+            sender = m.group(1)
+            checksum = m.group(2)
+            
+            if GetChecksum(sender) != checksum:
+                raise Exception('Mismatched checksum: %s vs. %s' % (checksum, GetChecksum(sender)))
+                
+            return sender
         else:
             raise Exception('Could not find sender in %s' % message.to)
 
@@ -51,11 +68,11 @@ class ReceiveEmailHandler(InboundMailHandler):
             return body[1].payload
 
     def RemoveReply(self, text):
-        # TODO: strip out quoted reply from text
         m = REPLY_PATTERN.search(text)
         if m:
             return m.group(1)
         else:
+            # Send bounce message.
             return None
 
     def receive(self, message):
