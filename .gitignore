@@ -22,3 +22,9 @@ pip-log.txt
 
 # Sphinx
 docs/tmp
+=======
+.DS_Store
+*.pyc
+
+conf.py
+*~

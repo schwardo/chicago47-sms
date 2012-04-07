@@ -1,0 +1,37 @@
+/* Standard styles
+================================================== */
+
+  body {
+    -webkit-font-smoothing: antialiased;
+  }
+  
+  img.scale { max-width: 100%; }
+  
+/* Header
+================================================== */
+
+  #header {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+  
+    #header .info { background-color: #FAFAFA; padding: 10px; margin-top: 5px; line-height: 1.2em !important; }
+    #header .social { margin-left: 0; text-align: center; padding-top: 20px; }
+      #header .social a { margin-right: 10px; }
+    
+  hr.separator {
+    background-color: #333;
+    height: 40px;
+    margin-top: 0;
+  }
+  
+/* FAQ
+================================================== */
+
+  #faq h3 { line-height: 1em; margin-bottom: 10px; }
+  #faq .q { margin-bottom: 40px; }
+  
+/* Reply
+================================================== */
+
+  .datestamp { display: block; }
