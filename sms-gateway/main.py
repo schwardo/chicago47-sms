@@ -15,6 +15,7 @@ from google.appengine.ext.webapp.mail_handlers import InboundMailHandler
 from google.appengine.ext.webapp import template
 
 from twilio.rest import TwilioRestClient
+from twilio import twiml
 
 # All user-specified settings go in conf.py.
 import conf
@@ -123,6 +124,12 @@ class ReceiveEmailHandler(InboundMailHandler):
             logging.info('SEND_SMS_ENABLED is False, not sending: %s' % payload)
         
 
+class ReceiveVoiceHandler(webapp2.RequestHandler):
+    def get(self):
+        r = twiml.Response()
+        r.say("Welcome to twilio!")
+        self.response.out.write(str(r))
+                                  
 class ReplyResponseHandler(webapp2.RequestHandler):
     def get(self, reply_id):
         response = LongResponse.get_by_key_name(reply_id)
@@ -141,6 +148,7 @@ class IndexResponseHandler(webapp2.RequestHandler):
 
 app = webapp2.WSGIApplication([ReceiveEmailHandler.mapping(),
                                ('/receive-sms', ReceiveSmsHandler),
+                               ('/receive-voice', ReceiveVoiceHandler),
                                ('/v/(.*)', ReplyResponseHandler),
                                ('/', IndexResponseHandler),
                                ],
